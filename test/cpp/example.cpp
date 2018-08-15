@@ -37,6 +37,10 @@ extern "C" {
     }
   }
 
+  void clearLog() {
+    theLog.clear();
+  }
+
   void fnVoidVoid() {
     log("fnVoidVoid()");
   }
@@ -59,7 +63,7 @@ extern "C" {
   
   MyPointer* createRandomMyPointer() {
     MyPointer* result = new MyPointer { rand(), "s" + std::to_string(rand())};
-    log("createMyPointer()=" + toString(*result));
+    log("createRandomMyPointer()=" + toString(*result));
     return result;
   }
 
@@ -75,12 +79,12 @@ extern "C" {
   }
 
   int myPointerGetI(MyPointer* s) {
-    log("myStructGetI(" + toString(*s) + "})=" + std::to_string(s->i));
+    log("myStructGetI(" + toString(*s) + ")=" + std::to_string(s->i));
     return s->i;
   }
 
   const char* myPointerGetS(MyPointer* s) {
-    log("myStructGetS(" + toString(*s)+ "})=" + s->s);
+    log("myStructGetS(" + toString(*s)+ ")=" + s->s);
     return s->s.c_str();
   }
 

@@ -3,8 +3,6 @@
             [jnalien.core :refer [defpointer defenum]])
   (:import [com.sun.jna Pointer]))
 
-(System/getProperty "java.library.path")
-
 (defpointer ::MyPointer)
 
 (defenum ::MyEnum
@@ -15,6 +13,7 @@
   `(jnalien.core/defn-native "example" ~@args))
 
 (defn-native String next-log nextLog)
+(defn-native Void clear-log nextLog)
 
 (defn-native Void fn-void-void fnVoidVoid)
 
@@ -41,6 +40,46 @@
 
 (defn-native String my-pointer-get-s myPointerGetS
   :ptr ::MyPointer)
+
+(defn- drain-log []
+  (take-while #(not (= % "EMPTY"))
+              (repeatedly #(next-log))))
+
+(defmacro with-log [& body]
+  `(do (clear-log)
+       ~@body))
+
+(deftest function-tests
+  (testing "void -> void"
+    (with-log
+      (fn-void-void)
+      (is (= ["fnVoidVoid()"] (drain-log)))))
+  (testing "void -> int"
+    (with-log
+      (fn-void-int 5)
+      (is (= ["fnVoidInt(5)"] (drain-log)))))
+  (testing "int -> int"
+    (with-log
+      (let [value (fn-int-int 5)]
+        (is (= [(str "fnIntInt(5)=" value)] (drain-log))))))
+  (testing "enum -> enum"
+    (with-log
+      (let [value (fn-enum-enum :global)
+            int-value ({:local 0 :global 1} value)]
+        (is (= [(str "fnEnumEnum(1)=" int-value)]
+               (drain-log))))))
+  (testing "random MyPointer"
+    (with-log
+      (let [p (create-random-my-pointer)
+            i (my-pointer-get-i p)
+            s (my-pointer-get-s p)
+            my-pointer (str "MyPointer{" i ", " s "}")]
+        (dispose-my-pointer p)
+        (is (= [(str "createRandomMyPointer()=" my-pointer)
+                (str "myStructGetI(" my-pointer ")=" i)
+                (str "myStructGetS(" my-pointer ")=" s)
+                (str "disposeMyPointer(" my-pointer ")")]
+               (drain-log)))))))
 
 ;; (defn-native randomize-my-pointer-array randomizeMyPointerArray
 ;;   :n Integer
