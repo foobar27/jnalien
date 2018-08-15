@@ -1,9 +1,11 @@
 (ns jnalien.core-test
   (:require [clojure.test :refer :all]
-            [jnalien.core :refer [defpointer defenum]])
+            [jnalien.core :refer [defpointer defenum native-array nullptr ->native-array copy-native-array-to-vec]])
   (:import [com.sun.jna Pointer]))
 
 (defpointer ::MyPointer)
+
+(nullptr ::MyPointer)
 
 (defenum ::MyEnum
   :local
@@ -41,13 +43,58 @@
 (defn-native String my-pointer-get-s myPointerGetS
   :ptr ::MyPointer)
 
+(defn-native Void randomize-my-pointer-array randomizeMyPointerArray
+  :n Integer
+  :output (native-array ::MyPointer))
+
+(defn-native ::MyPointer get-my-pointer-in-array getMyPointerInArray
+  :array (native-array ::MyPointer)
+  :index Integer)
+
+(defn-native Void set-my-pointer-in-array setMyPointerInArray
+  :array (native-array :MyPointer)
+  :index Integer
+  :pointer ::MyPointer)
+
+(defn-native Integer sum sum
+  :array (native-array Integer)
+  :n Integer)
+
+(defn-native Void fill-multiples fillMultiples
+  :n Integer
+  :k Integer
+  :output (native-array Integer))
+
+;; (defn-native concat-native concat
+;;   :array (native-array String)
+;;   :n Integer)
+
+;; (defn-native create-multiples-as-string
+;;   :n Integer
+;;   :k Integer
+;;   :output (native-array String))
+
+;;
+;; Test infrastructure
+;;
+
 (defn- drain-log []
-  (take-while #(not (= % "EMPTY"))
-              (repeatedly #(next-log))))
+  (doall
+   (take-while #(not (= % "EMPTY"))
+               (repeatedly #(next-log)))))
 
 (defmacro with-log [& body]
   `(do (clear-log)
        ~@body))
+
+(defn- my-pointer->str [p]
+  (let [i (my-pointer-get-i p)
+        s (my-pointer-get-s p)]
+    (str "MyPointer{" i ", " s "}")))
+
+;;
+;; Actual tests
+;;
 
 (deftest function-tests
   (testing "void -> void"
@@ -79,43 +126,45 @@
                 (str "myStructGetI(" my-pointer ")=" i)
                 (str "myStructGetS(" my-pointer ")=" s)
                 (str "disposeMyPointer(" my-pointer ")")]
-               (drain-log)))))))
+               (drain-log))))))
+  (testing "array of pointers"
+    (with-log
+      (let [a (->native-array (native-array ::MyPointer) (repeatedly 5 #(create-my-pointer 0 "")))]
+        (is (= (repeatedly 5 (fn [] "MyPointer{0, }"))
+               (map my-pointer->str (copy-native-array-to-vec a))))
+        (drain-log) ;; ignore result => tested in previous tests
+        (randomize-my-pointer-array (.array-size a) a)
+        (let [internal-strings (take-while #(.startsWith % "createRandomMyPointer()=") (drain-log))]
+          (drain-log) ;; ignore remaining internal logs
+          (let [strs (map #(str "createRandomMyPointer()=" (my-pointer->str %)) (copy-native-array-to-vec a))]
+            (is (= strs
+                   internal-strings)))))))
+  (testing "sum of integers"
+    (is (= 45
+           (sum (->native-array (native-array Integer) (range 0 10))
+                10))))
+  (testing "fill multiples"
+    (is (= [0 10 20 30 40])
+        (let [a (->native-array (native-array Integer) 10)]
+          (fill-multiples 5 10 a)
+          (copy-native-array-to-vec a)))))
 
-;; (defn-native randomize-my-pointer-array randomizeMyPointerArray
-;;   :n Integer
-;;   :output (native-array ::MyPointer))
+;; (let [a ]
+;;   (randomize-my-pointer-array (.array-size a) a)
+;;   (for [ptr (copy-native-array-to-vec a)]
+;;     (str "MyPointer{" (my-pointer-get-i ptr) ", " (my-pointer-get-s ptr) "}") ))
 
-;; (defn-native ::MyPointer get-my-pointer-in-array getMyPointerInArray
-;;   :array (native-array ::MyPointer)
-;;   :index Integer)
+;; (let [f (com.sun.jna.Function/getFunction "example" "fillMultiples")
+;;       a (int-array 5)]
+;;   (.invoke f Void (to-array [(int 5) (int 10) a]))
+;;   (vec a))
 
-;; (defn-native Void set-my-pointer-in-array setMyPointerInArray
-;;   :array (native-array :MyPointer)
-;;   :index Integer
-;;   :pointer ::MyPointer)
+;; (let [f (com.sun.jna.Function/getFunction "example" "randomizeMyPointerArray")
+;;       a (long-array (map #(Pointer/nativeValue (.value %)) (repeatedly 5 #(create-my-pointer 0 ""))))]
+;;   (.invoke f Void (to-array [(int 5) a]))
+;;   (my-pointer-get-s (jnalien.core/wrap-native-value ::MyPointer (Pointer/createConstant (aget a 0 )))))
 
-;; (defn-native Integer sum sum
-;;   :array (native-array Integer)
-;;   :n Integer)
+;; (vec (:native-value (->native-array (native-array ::MyPointer) [(create-random-my-pointer) (create-random-my-pointer)])))
 
-;; (defn-native fill-multiples fillMultiples
-;;   :n Integer
-;;   :k Integer
-;;   :output (native-arrray Integer))
-
-;; (defn-native concat-native concat
-;;   :array (native-array String)
-;;   :n Integer)
-
-;; (defn-native create-multiples-as-string
-;;   :n Integer
-;;   :k Integer
-;;   :output (native-array String))
-
-;; (let [ptr (create-random-my-pointer)]
-;;   (println (my-pointer-get-i ptr)
-;;            (my-pointer-get-s ptr))
-;;   (dispose-my-pointer ptr))
-
-
-
+;; TODO test: array<enum>
+;; TODO test: array<String>

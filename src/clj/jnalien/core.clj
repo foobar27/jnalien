@@ -26,6 +26,8 @@
 (defmethod wrap-native-value Void [_ x] nil)
 (defmethod unwrap-native-value Void [_ x] nil)
 
+(defmulti nullptr (fn [native-type] native-type))
+
 (defrecord WrappedPointer [native-type ^Pointer value])
 (s/fdef defpointer
   :args (s/cat :kw qualified-keyword?))
@@ -42,9 +44,49 @@
      (defmethod wrap-native-value ~kw
        [_# x#] (->WrappedPointer ~kw x#))
      (defmethod unwrap-native-value ~kw
-       [_# x#] (.value x#))))
+       [_# x#] (.value x#))
+     (defmethod nullptr ~kw
+       [_#] (->WrappedPointer ~kw (Pointer/NULL)))))
 
-(defrecord WrappedArray [native-element-type value])
+(defrecord WrappedArray [native-element-type array-size native-value])
+
+;; TODO I don't really like this solution. It would be nicer to alias
+;; the array like vec does, while still transforming the values in
+;; both directions
+;; TODO not necesary for all the types?
+;; TODO spec this function
+(defn copy-native-array-to-vec [a]
+  (let [native-element-type (.native-element-type a)]
+    (into [] (map #(wrap-native-value native-element-type %) (.native-value a)))))
+
+;; TOOD does this work for enum arrays?
+(def ^:private native-array-ctor
+  {Boolean boolean-array
+   Character char-array
+   Byte byte-array
+   Short short-array
+   Integer int-array
+   Long long-array
+   Float float-array
+   Double double-array})
+
+(defn ->native-array [[_ native-element-type] n-or-seq]
+  (let [array-ctor (native-array-ctor native-element-type)
+        _ (when-not (or array-ctor (= Pointer (native-type->class native-element-type)))
+            (throw (IllegalArgumentException. "I only know how to do primitive and pointer arrays for now.")))
+        n-or-seq (if (number? n-or-seq)
+                   n-or-seq
+                   (map (fn [x]
+                          (if array-ctor
+                            (unwrap-native-value native-element-type x)
+                            (Pointer/nativeValue (unwrap-native-value native-element-type x))))
+                        n-or-seq))
+        n (if (number? n-or-seq) n-or-seq (count n-or-seq))]
+    (->WrappedArray native-element-type
+                    n
+                    (if array-ctor
+                      (array-ctor n-or-seq)
+                      (long-array n-or-seq)))))
 
 (defmulti complex-native-type->spec
   (fn [native-type] (first native-type)))
@@ -75,11 +117,25 @@
     (wrap-complex-native-value native-type value)
     (throw (IllegalArgumentException. (str "Unimplemented unwrap-native-value for " native-type)))))
 
+(defn native-array [native-type]
+  [::native-array native-type])
 
+(defmethod complex-native-type->spec ::native-array
+  [[_ native-element-type]]
+  (s/and #(instance? WrappedArray %1)
+         #(native-element-type (.native-element-type %))))
 
-;; TODO dispatch int-array, object-array etc
-;; TODO recursively un/wrap array elements
-;; TODO how do I know how many elements are in the array?
+(defmethod complex-native-type->class ::native-array
+  [[_ native-element-type]]
+  Pointer)
+
+(defmethod unwrap-complex-native-value ::native-array
+  [[_ native-element-type] value]
+  (.native-value value))
+
+(defmethod wrap-complex-native-value ::native-array
+  [[_ native-element-type] value]
+  (throw (IllegalArgumentException. "Arrays not supported in return types")))
 
 ;; TODO do some sanity checks (duplicates & co)
 (defn- parse-enum-arguments [args]
