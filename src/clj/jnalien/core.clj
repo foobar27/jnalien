@@ -105,6 +105,12 @@
                         (array-ctor n-or-seq)
                         (long-array n-or-seq))))))
 
+(s/fdef implicit-array-size
+  :args (s/cat :kw keyword?))
+(defn implicit-array-size [kw]
+  (fn [args]
+    (.array-size (get args kw))))
+
 (defmulti complex-native-type->spec
   (fn [native-type] (first native-type)))
 (defmulti complex-native-type->class
@@ -198,23 +204,39 @@
            [_# x#]
            (get kw->id# x#))))))
 
+
+
 (defmacro defn-native [lib-name return-type clj-fn-symbol native-fn-symbol & named-args-flat]
   (let [native-fn-name (name native-fn-symbol)
+        explicit-arg-values-sym (gensym "explicit-arg-values")
+        ->named-arg (fn [k v]
+                      {:keyword k
+                       :symbol (-> k name gensym)
+                       :native-type v})
         named-args (for [[k v] (partition 2 named-args-flat)]
-                     {:keyword k
-                      :symbol (-> k name gensym)
-                      :native-type v})]
+                     (if (vector? v)
+                       (merge (->named-arg k (first v))
+                              (into {} (map vec (partition 2 (rest v)))))
+                       (->named-arg k v)))]
     `(do
        (s/fdef ~clj-fn-symbol
          :args (s/cat ~@(apply concat
-                               (for [{:keys [keyword native-type]} named-args]
+                               (for [{:keys [keyword native-type implicit]} named-args
+                                     :when (nil? implicit)]
                                  [keyword `(native-type->spec ~native-type)])))
          :ret (native-type->spec ~return-type))
        (let [function# (com.sun.jna.Function/getFunction ~lib-name ~native-fn-name)]
-         (defn ~clj-fn-symbol [~@(map :symbol named-args)]
-           (->> (.invoke function#
-                         (native-type->class ~return-type)
-                         (to-array [~@(for [{:keys [native-type symbol]} named-args]
-                                        `(unwrap-native-value ~native-type ~symbol))]))
-                (wrap-native-value ~return-type)))))))
-
+         (defn ~clj-fn-symbol [~@(for [{:keys [symbol implicit]} named-args
+                                       :when (nil? implicit)]
+                                   symbol)]
+           (let [~explicit-arg-values-sym (into {}
+                                                [~@(for [{:keys [keyword symbol implicit]} named-args
+                                                         :when (nil? implicit)]
+                                                     [keyword symbol])])]
+             (->> (.invoke function#
+                           (native-type->class ~return-type)
+                           (to-array [~@(for [{:keys [native-type symbol implicit]} named-args]
+                                          (if implicit
+                                            `(unwrap-native-value ~native-type (~implicit ~explicit-arg-values-sym))
+                                            `(unwrap-native-value ~native-type ~symbol)))]))
+                  (wrap-native-value ~return-type))))))))

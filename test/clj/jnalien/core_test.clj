@@ -1,6 +1,6 @@
 (ns jnalien.core-test
   (:require [clojure.test :refer :all]
-            [jnalien.core :refer [defpointer defenum native-array nullptr ->native-array]])
+            [jnalien.core :refer [defpointer defenum native-array nullptr ->native-array implicit-array-size]])
   (:import [com.sun.jna Pointer]))
 
 (defpointer ::MyPointer)
@@ -18,6 +18,9 @@
 (defn-native Void clear-log nextLog)
 
 (defn-native Void fn-void-void fnVoidVoid)
+
+(println (macroexpand `(defn-native Void fn-void-int fnVoidInt
+                         :x Integer)))
 
 (defn-native Void fn-void-int fnVoidInt
   :x Integer)
@@ -44,7 +47,7 @@
   :ptr ::MyPointer)
 
 (defn-native Void randomize-my-pointer-array randomizeMyPointerArray
-  :n Integer
+  :n [Integer :implicit (implicit-array-size :output)]
   :output (native-array ::MyPointer))
 
 (defn-native ::MyPointer get-my-pointer-in-array getMyPointerInArray
@@ -58,23 +61,23 @@
 
 (defn-native Integer sum sum
   :array (native-array Integer)
-  :n Integer)
+  :n [Integer :implicit (implicit-array-size :array)])
 
 (defn-native Void fill-multiples fillMultiples
-  :n Integer
+  :n [Integer :implicit (implicit-array-size :output)]
   :k Integer
   :output (native-array Integer))
 
 (defn-native Void invert-enum-array invertEnumArray
-  :n Integer
+  :n [Integer :implicit (implicit-array-size :array)]
   :array (native-array ::MyEnum))
 
 (defn-native String concat-native concat
   :array (native-array String)
-  :n Integer)
+  :n [Integer :implicit (implicit-array-size :array)])
 
 (defn-native Void create-multiples-as-string createMultiplesAsString
-  :n Integer
+  :n [Integer :implicit (implicit-array-size :output)]
   :k Integer
   :output (native-array String))
 
@@ -137,7 +140,7 @@
         (is (= (repeatedly 5 (fn [] "MyPointer{0, }"))
                (map my-pointer->str @a)))
         (drain-log) ;; ignore result => tested in previous tests
-        (randomize-my-pointer-array (.array-size a) a)
+        (randomize-my-pointer-array a)
         (let [internal-strings (take-while #(.startsWith % "createRandomMyPointer()=") (drain-log))]
           (drain-log) ;; ignore remaining internal logs
           (let [strs (map #(str "createRandomMyPointer()=" (my-pointer->str %)) @a)]
@@ -145,24 +148,22 @@
                    internal-strings)))))))
   (testing "sum of integers"
     (is (= 45
-           (sum (->native-array (native-array Integer) (range 0 10))
-                10))))
+           (sum (->native-array (native-array Integer) (range 0 10))))))
   (testing "fill multiples"
     (is (= [0 10 20 30 40])
-        (let [a (->native-array (native-array Integer) 10)]
-          (fill-multiples 5 10 a)
+        (let [a (->native-array (native-array Integer) 5)]
+          (fill-multiples 10 a)
           @a)))
   (testing "invert enum array"
     (is (= [:local :global :local :global]
            (let [a (->native-array (native-array ::MyEnum) [:global :local :global :local])]
-             (invert-enum-array 4 a)
+             (invert-enum-array a)
              @a))))
   (testing "concat strings"
     (is (= "Hello world!"
-           (concat-native (->native-array (native-array String) ["Hello", " ", "world", "!"])
-                          4))))
+           (concat-native (->native-array (native-array String) ["Hello", " ", "world", "!"])))))
   (testing create-multiples-as-string
     (is (= ["0" "10" "20" "30" "40"]
            (let [a (->native-array (native-array String) 5)]
-             (create-multiples-as-string 5 10 a)
+             (create-multiples-as-string 10 a)
              @a)))))
