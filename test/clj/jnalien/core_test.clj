@@ -19,9 +19,6 @@
 
 (defn-native Void fn-void-void fnVoidVoid)
 
-(println (macroexpand `(defn-native Void fn-void-int fnVoidInt
-                         :x Integer)))
-
 (defn-native Void fn-void-int fnVoidInt
   :x Integer)
 
