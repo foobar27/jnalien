@@ -1,6 +1,6 @@
 (ns jnalien.core-test
   (:require [clojure.test :refer :all]
-            [jnalien.core :refer [defpointer defenum native-array nullptr ->native-array copy-native-array-to-vec]])
+            [jnalien.core :refer [defpointer defenum native-array nullptr ->native-array]])
   (:import [com.sun.jna Pointer]))
 
 (defpointer ::MyPointer)
@@ -135,12 +135,12 @@
     (with-log
       (let [a (->native-array (native-array ::MyPointer) (repeatedly 5 #(create-my-pointer 0 "")))]
         (is (= (repeatedly 5 (fn [] "MyPointer{0, }"))
-               (map my-pointer->str (copy-native-array-to-vec a))))
+               (map my-pointer->str @a)))
         (drain-log) ;; ignore result => tested in previous tests
         (randomize-my-pointer-array (.array-size a) a)
         (let [internal-strings (take-while #(.startsWith % "createRandomMyPointer()=") (drain-log))]
           (drain-log) ;; ignore remaining internal logs
-          (let [strs (map #(str "createRandomMyPointer()=" (my-pointer->str %)) (copy-native-array-to-vec a))]
+          (let [strs (map #(str "createRandomMyPointer()=" (my-pointer->str %)) @a)]
             (is (= strs
                    internal-strings)))))))
   (testing "sum of integers"
@@ -151,14 +151,13 @@
     (is (= [0 10 20 30 40])
         (let [a (->native-array (native-array Integer) 10)]
           (fill-multiples 5 10 a)
-          (copy-native-array-to-vec a))))
+          @a)))
   (testing "invert enum array"
     (is (= [:local :global :local :global]
            (let [a (->native-array (native-array ::MyEnum) [:global :local :global :local])]
              (invert-enum-array 4 a)
-             (copy-native-array-to-vec a)))))
+             @a))))
   (testing "concat strings"
     (is (= "Hello world!"
            (concat-native (->native-array (native-array String) ["Hello", " ", "world", "!"])
                           4)))))
-

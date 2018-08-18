@@ -48,18 +48,21 @@
      (defmethod nullptr ~kw
        [_#] (->WrappedPointer ~kw (Pointer/NULL)))))
 
-(defrecord WrappedArray [native-element-type array-size native-value])
-
 ;; TODO I don't really like this solution. It would be nicer to alias
 ;; the array like vec does, while still transforming the values in
 ;; both directions
 ;; TODO not necesary for all the types?
 ;; TODO spec this function
-(defn copy-native-array-to-vec [a]
+(defn- copy-native-array-to-vec [a]
   (let [native-element-type (.native-element-type a)]
     (if (= String native-element-type)
       (vec (.native-value a))
       (into [] (map #(wrap-native-value native-element-type %) (.native-value a))))))
+
+(defrecord WrappedArray [native-element-type array-size native-value]
+  clojure.lang.IDeref
+  (deref [this]
+    (copy-native-array-to-vec this)))
 
 (def ^:private primitive-array-ctors
   {Boolean boolean-array
