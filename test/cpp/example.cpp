@@ -16,8 +16,6 @@ std::string toString(const MyPointer& ptr) {
   return "MyPointer{" + std::to_string(ptr.i) + ", " + ptr.s + "}";
 }
 
-enum class MyEnum { LOCAL, GLOBAL };
-
 int logIndex = 0;
 std::vector<std::string> theLog;
 
@@ -126,6 +124,12 @@ extern "C" {
   void fillMultiples(int n, int k, int* result) {
     for (int i = 0; i < n; ++i) {
       result[i] = k*i;
+    }
+  }
+
+  void invertEnumArray(int n, int* array) {
+    for (int i = 0; i < n; ++i) {
+      array[i] = array[i] == 1 ? 0 : 1;
     }
   }
 

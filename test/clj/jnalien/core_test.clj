@@ -65,6 +65,10 @@
   :k Integer
   :output (native-array Integer))
 
+(defn-native Void invert-enum-array invertEnumArray
+  :n Integer
+  :array (native-array ::MyEnum))
+
 ;; (defn-native concat-native concat
 ;;   :array (native-array String)
 ;;   :n Integer)
@@ -147,24 +151,9 @@
     (is (= [0 10 20 30 40])
         (let [a (->native-array (native-array Integer) 10)]
           (fill-multiples 5 10 a)
-          (copy-native-array-to-vec a)))))
-
-;; (let [a ]
-;;   (randomize-my-pointer-array (.array-size a) a)
-;;   (for [ptr (copy-native-array-to-vec a)]
-;;     (str "MyPointer{" (my-pointer-get-i ptr) ", " (my-pointer-get-s ptr) "}") ))
-
-;; (let [f (com.sun.jna.Function/getFunction "example" "fillMultiples")
-;;       a (int-array 5)]
-;;   (.invoke f Void (to-array [(int 5) (int 10) a]))
-;;   (vec a))
-
-;; (let [f (com.sun.jna.Function/getFunction "example" "randomizeMyPointerArray")
-;;       a (long-array (map #(Pointer/nativeValue (.value %)) (repeatedly 5 #(create-my-pointer 0 ""))))]
-;;   (.invoke f Void (to-array [(int 5) a]))
-;;   (my-pointer-get-s (jnalien.core/wrap-native-value ::MyPointer (Pointer/createConstant (aget a 0 )))))
-
-;; (vec (:native-value (->native-array (native-array ::MyPointer) [(create-random-my-pointer) (create-random-my-pointer)])))
-
-;; TODO test: array<enum>
-;; TODO test: array<String>
+          (copy-native-array-to-vec a))))
+  (testing "invert enum array"
+    (is (= [:local :global :local :global]
+           (let [a (->native-array (native-array ::MyEnum) [:global :local :global :local])]
+             (invert-enum-array 4 a)
+             (copy-native-array-to-vec a))))))

@@ -59,8 +59,7 @@
   (let [native-element-type (.native-element-type a)]
     (into [] (map #(wrap-native-value native-element-type %) (.native-value a)))))
 
-;; TOOD does this work for enum arrays?
-(def ^:private native-array-ctor
+(def ^:private primitive-array-ctors
   {Boolean boolean-array
    Character char-array
    Byte byte-array
@@ -69,6 +68,9 @@
    Long long-array
    Float float-array
    Double double-array})
+(defn- native-array-ctor [native-type]
+  (or (primitive-array-ctors native-type)
+      (primitive-array-ctors (native-type->class native-type))))
 
 (defn ->native-array [[_ native-element-type] n-or-seq]
   (let [array-ctor (native-array-ctor native-element-type)
