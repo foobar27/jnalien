@@ -1,6 +1,6 @@
 (ns jnalien.core
   (:require [clojure.spec.alpha :as s])
-  (:import [com.sun.jna Native Pointer Memory]))
+  (:import [com.sun.jna Native Pointer Memory StringArray]))
 
 (defmulti native-type->spec
   (fn [native-type] native-type))
@@ -57,7 +57,9 @@
 ;; TODO spec this function
 (defn copy-native-array-to-vec [a]
   (let [native-element-type (.native-element-type a)]
-    (into [] (map #(wrap-native-value native-element-type %) (.native-value a)))))
+    (if (= String native-element-type)
+      (vec (.native-value a))
+      (into [] (map #(wrap-native-value native-element-type %) (.native-value a))))))
 
 (def ^:private primitive-array-ctors
   {Boolean boolean-array
@@ -74,21 +76,28 @@
 
 (defn ->native-array [[_ native-element-type] n-or-seq]
   (let [array-ctor (native-array-ctor native-element-type)
-        _ (when-not (or array-ctor (= Pointer (native-type->class native-element-type)))
-            (throw (IllegalArgumentException. "I only know how to do primitive and pointer arrays for now.")))
+        native-element-class  (native-type->class native-element-type)
+        _ (when-not (or array-ctor
+                        (#{String Pointer} native-element-class))
+            (throw (IllegalArgumentException.
+                    "I only know how to do primitive, pointer and string arrays for now.")))
         n-or-seq (if (number? n-or-seq)
                    n-or-seq
                    (map (fn [x]
                           (if array-ctor
                             (unwrap-native-value native-element-type x)
-                            (Pointer/nativeValue (unwrap-native-value native-element-type x))))
+                            (condp = native-element-class
+                              Pointer (Pointer/nativeValue (unwrap-native-value native-element-type x))
+                              String x)))
                         n-or-seq))
         n (if (number? n-or-seq) n-or-seq (count n-or-seq))]
     (->WrappedArray native-element-type
                     n
-                    (if array-ctor
-                      (array-ctor n-or-seq)
-                      (long-array n-or-seq)))))
+                    (if (= String native-element-class)
+                      (StringArray. (into-array String n-or-seq))
+                      (if array-ctor
+                        (array-ctor n-or-seq)
+                        (long-array n-or-seq))))))
 
 (defmulti complex-native-type->spec
   (fn [native-type] (first native-type)))

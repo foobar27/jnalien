@@ -69,9 +69,9 @@
   :n Integer
   :array (native-array ::MyEnum))
 
-;; (defn-native concat-native concat
-;;   :array (native-array String)
-;;   :n Integer)
+(defn-native String concat-native concat
+  :array (native-array String)
+  :n Integer)
 
 ;; (defn-native create-multiples-as-string
 ;;   :n Integer
@@ -156,4 +156,9 @@
     (is (= [:local :global :local :global]
            (let [a (->native-array (native-array ::MyEnum) [:global :local :global :local])]
              (invert-enum-array 4 a)
-             (copy-native-array-to-vec a))))))
+             (copy-native-array-to-vec a)))))
+  (testing "concat strings"
+    (is (= "Hello world!"
+           (concat-native (->native-array (native-array String) ["Hello", " ", "world", "!"])
+                          4)))))
+
