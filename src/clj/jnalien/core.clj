@@ -56,7 +56,7 @@
 (defn- copy-native-array-to-vec [a]
   (let [native-element-type (.native-element-type a)]
     (if (= String native-element-type)
-      (vec (.native-value a))
+      (vec (second (.native-value a)))
       (into [] (map #(wrap-native-value native-element-type %) (.native-value a))))))
 
 (defrecord WrappedArray [native-element-type array-size native-value]
@@ -85,7 +85,9 @@
             (throw (IllegalArgumentException.
                     "I only know how to do primitive, pointer and string arrays for now.")))
         n-or-seq (if (number? n-or-seq)
-                   n-or-seq
+                   (if (= native-element-type String)
+                     (repeatedly n-or-seq (fn [] nil))
+                     n-or-seq)
                    (map (fn [x]
                           (if array-ctor
                             (unwrap-native-value native-element-type x)
@@ -97,7 +99,8 @@
     (->WrappedArray native-element-type
                     n
                     (if (= String native-element-class)
-                      (StringArray. (into-array String n-or-seq))
+                      (let [array (into-array String n-or-seq)]
+                        [(StringArray. array) array])
                       (if array-ctor
                         (array-ctor n-or-seq)
                         (long-array n-or-seq))))))
@@ -145,7 +148,9 @@
 
 (defmethod unwrap-complex-native-value ::native-array
   [[_ native-element-type] value]
-  (.native-value value))
+  (if (= native-element-type String)
+    (first (.native-value value))
+    (.native-value value)))
 
 (defmethod wrap-complex-native-value ::native-array
   [[_ native-element-type] value]

@@ -73,10 +73,10 @@
   :array (native-array String)
   :n Integer)
 
-;; (defn-native create-multiples-as-string
-;;   :n Integer
-;;   :k Integer
-;;   :output (native-array String))
+(defn-native Void create-multiples-as-string createMultiplesAsString
+  :n Integer
+  :k Integer
+  :output (native-array String))
 
 ;;
 ;; Test infrastructure
@@ -160,4 +160,9 @@
   (testing "concat strings"
     (is (= "Hello world!"
            (concat-native (->native-array (native-array String) ["Hello", " ", "world", "!"])
-                          4)))))
+                          4))))
+  (testing create-multiples-as-string
+    (is (= ["0" "10" "20" "30" "40"]
+           (let [a (->native-array (native-array String) 5)]
+             (create-multiples-as-string 5 10 a)
+             @a)))))
