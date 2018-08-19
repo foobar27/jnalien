@@ -147,6 +147,17 @@ extern "C" {
     }
   }
 
-  // TODO callbacks
+  int setByFlag(int* values, int flags) {
+    int bit = 1;
+    for (int i = 0; i < 4; ++i) {
+      if (flags & bit) {
+	values[i] = 1;
+      } else {
+	values[i] = 0;
+      }
+      bit <<= 1;
+    }
+    return 1+4+8;
+  }
   
 }

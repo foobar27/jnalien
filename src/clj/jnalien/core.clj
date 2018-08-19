@@ -255,6 +255,45 @@
            (get kw->id# x#))))))
 
 ;;
+;; Flags
+;;
+
+(defn- parse-flags-arguments [args]
+  (partition 2 args))
+
+(s/fdef defflags
+  :args (s/cat :kw qualified-keyword?
+               :args (s/+ (s/cat :k int?
+                                 :v qualified-keyword?))))
+(defmacro defflags [kw & args]
+  (let [args (parse-flags-arguments args)]
+    `(let [all-flags# ~(into {} (for [[k v] args]
+                                  [v k]))]
+       (defmethod native-type->spec ~kw
+         [_#]
+         (s/coll-of all-flags#))
+       (defmethod native-type->class ~kw
+         [_#]
+         Integer)
+       (defmethod wrap-native-value ~kw
+         [_# i#]
+         (reduce (fn [a# [k# v#]]
+                   (if (pos? (bit-and i# v#))
+                     (conj a# k#)
+                     a#))
+                 #{}
+                 all-flags#))
+       (defmethod unwrap-native-value ~kw
+         [_# s#]
+         (reduce (fn [a# x#]
+                   (if-let [v# (get all-flags# x#)]
+                     (bit-or a# v#)
+                     (throw (IllegalArgumentException.
+                             (str "Unknown " ~kw " flag: " x# ", possible flags: " (keys all-flags#))))))
+                 0
+                 s#)))))
+
+;;
 ;; Implementation
 ;;
 

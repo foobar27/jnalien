@@ -1,7 +1,8 @@
 (ns jnalien.core-test
   (:require [clojure.test :refer :all]
-            [jnalien.core :refer [defpointer defenum input-output-array input-array
-                                  nullptr ->input-output-array implicit-array-size]])
+            [jnalien.core :refer [defpointer defenum input-output-array input-array defflags
+                                  nullptr ->input-output-array implicit-array-size
+                                  wrap-native-value unwrap-native-value]])
   (:import [com.sun.jna Pointer]))
 
 (defpointer ::MyPointer)
@@ -11,6 +12,18 @@
 (defenum ::MyEnum
   :local
   :global)
+
+(defflags ::MyFlags
+  1 ::first
+  2 ::second
+  4 ::third
+  8 ::fourth)
+
+(deftest flag-conversion
+  (is (= (unwrap-native-value ::MyFlags #{::first ::second ::fourth})
+         (+ 1 2 8)))
+  (is (= (wrap-native-value ::MyFlags (+ 1 2 8))
+         #{::first ::second ::fourth})))
 
 (defmacro defn-native [& args]
   `(jnalien.core/defn-native "example" ~@args))
@@ -82,6 +95,10 @@
   :n [Integer :implicit (implicit-array-size :output)]
   :k Integer
   :output (input-output-array String))
+
+(defn-native ::MyFlags set-by-flag setByFlag
+  :values (input-output-array Integer)
+  :flags ::MyFlags)
 
 ;;
 ;; Test infrastructure
@@ -171,4 +188,10 @@
     (is (= ["0" "10" "20" "30" "40"]
            (let [a (->input-output-array (input-output-array String) 5)]
              (create-multiples-as-string 10 a)
-             @a)))))
+             @a))))
+  (testing "flags"
+    (is (= [#{::first ::third ::fourth}
+            [1 1 0 1]]
+           (let [a (->input-output-array (input-output-array Integer) 4)]
+             [(set-by-flag a #{::first ::second ::fourth})
+              @a])))))
