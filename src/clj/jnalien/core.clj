@@ -59,7 +59,19 @@
       (vec (second (.native-value a)))
       (into [] (map #(wrap-native-value native-element-type %) (.native-value a))))))
 
-(defrecord WrappedArray [native-element-type array-size native-value]
+(defprotocol WrappedArray
+  (native-element-type [this])
+  (native-value [this]))
+
+(deftype WrappedArrayImpl [net sz nv]
+  
+  WrappedArray
+  (native-element-type [_] net)
+  (native-value [_] nv)
+  
+  clojure.lang.Counted
+  (count [_] sz)
+  
   clojure.lang.IDeref
   (deref [this]
     (copy-native-array-to-vec this)))
@@ -96,20 +108,20 @@
                               String x)))
                         n-or-seq))
         n (if (number? n-or-seq) n-or-seq (count n-or-seq))]
-    (->WrappedArray native-element-type
-                    n
-                    (if (= String native-element-class)
-                      (let [array (into-array String n-or-seq)]
-                        [(StringArray. array) array])
-                      (if array-ctor
-                        (array-ctor n-or-seq)
-                        (long-array n-or-seq))))))
+    (->WrappedArrayImpl native-element-type
+                        n
+                        (if (= String native-element-class)
+                          (let [array (into-array String n-or-seq)]
+                            [(StringArray. array) array])
+                          (if array-ctor
+                            (array-ctor n-or-seq)
+                            (long-array n-or-seq))))))
 
 (s/fdef implicit-array-size
   :args (s/cat :kw keyword?))
 (defn implicit-array-size [kw]
   (fn [args]
-    (.array-size (get args kw))))
+    (count (get args kw))))
 
 (defmulti complex-native-type->spec
   (fn [native-type] (first native-type)))
@@ -145,7 +157,7 @@
 
 (defmethod complex-native-type->spec ::native-array
   [[_ native-element-type]]
-  (s/and #(instance? WrappedArray %1)
+  (s/and #(satisfies? WrappedArray %1)
          #(native-element-type (.native-element-type %))))
 
 (defmethod complex-native-type->class ::native-array
