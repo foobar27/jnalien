@@ -1,6 +1,7 @@
 (ns jnalien.core-test
   (:require [clojure.test :refer :all]
-            [jnalien.core :refer [defpointer defenum native-array nullptr ->native-array implicit-array-size]])
+            [jnalien.core :refer [defpointer defenum native-array input-array
+                                  nullptr ->native-array implicit-array-size]])
   (:import [com.sun.jna Pointer]))
 
 (defpointer ::MyPointer)
@@ -58,6 +59,10 @@
 
 (defn-native Integer sum sum
   :array (native-array Integer)
+  :n [Integer :implicit (implicit-array-size :array)])
+
+(defn-native Integer sum-input-argument sum
+  :array (input-array Integer)
   :n [Integer :implicit (implicit-array-size :array)])
 
 (defn-native Void fill-multiples fillMultiples
@@ -146,6 +151,9 @@
   (testing "sum of integers"
     (is (= 45
            (sum (->native-array (native-array Integer) (range 0 10))))))
+  (testing "sum of integers (input argument)"
+    (is (= 45
+           (sum-input-argument (range 0 10)))))
   (testing "fill multiples"
     (is (= [0 10 20 30 40])
         (let [a (->native-array (native-array Integer) 5)]

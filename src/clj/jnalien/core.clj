@@ -152,8 +152,12 @@
     (wrap-complex-native-value native-type value)
     (throw (IllegalArgumentException. (str "Unimplemented unwrap-native-value for " native-type)))))
 
-(defn native-array [native-type]
-  [::native-array native-type])
+;;
+;; Native arrays
+;;
+
+(defn native-array [native-element-type]
+  [::native-array native-element-type])
 
 (defmethod complex-native-type->spec ::native-array
   [[_ native-element-type]]
@@ -173,6 +177,32 @@
 (defmethod wrap-complex-native-value ::native-array
   [[_ native-element-type] value]
   (throw (IllegalArgumentException. "Arrays not supported in return types")))
+
+
+;;
+;; Transformed Input
+;;
+
+(defn transform-input [transformed-native-type spec transformation ]
+  [::transformed-input transformed-native-type spec transformation])
+
+(defn input-array [native-element-type]
+  (let [native-array-type (native-array native-element-type)]
+    (transform-input native-array-type
+                     (s/coll-of (native-type->spec native-element-type))
+                     (fn [x] (->native-array native-array-type x)))))
+
+(defmethod complex-native-type->spec ::transformed-input
+  [[_ transformed-native-type spec transformation]]
+  spec)
+
+(defmethod complex-native-type->class ::transformed-input
+  [[_ transformed-native-type spec transformation]]
+  (native-type->class transformed-native-type))
+
+(defmethod unwrap-complex-native-value ::transformed-input
+  [[_ transformed-native-type spec transformation] value]
+  (unwrap-native-value transformed-native-type(transformation value)))
 
 ;; TODO do some sanity checks (duplicates & co)
 (defn- parse-enum-arguments [args]
