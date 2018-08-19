@@ -109,19 +109,19 @@
 ;; both directions
 ;; TODO not necesary for all the types?
 ;; TODO spec this function
-(defn- copy-native-array-to-vec [a]
+(defn- copy-input-output-array-to-vec [a]
   (let [native-element-type (.native-element-type a)]
     (if (= String native-element-type)
       (vec (second (.native-value a)))
       (into [] (map #(wrap-native-value native-element-type %) (.native-value a))))))
 
-(defprotocol WrappedArray
+(defprotocol InputOutputArray
   (native-element-type [this])
   (native-value [this]))
 
-(deftype WrappedArrayImpl [net sz nv]
+(deftype InputOutputArrayImpl [net sz nv]
   
-  WrappedArray
+  InputOutputArray
   (native-element-type [_] net)
   (native-value [_] nv)
   
@@ -130,7 +130,7 @@
   
   clojure.lang.IDeref
   (deref [this]
-    (copy-native-array-to-vec this)))
+    (copy-input-output-array-to-vec this)))
 
 (def ^:private primitive-array-ctors
   {Boolean boolean-array
@@ -141,12 +141,12 @@
    Long long-array
    Float float-array
    Double double-array})
-(defn- native-array-ctor [native-type]
+(defn- input-output-array-ctor [native-type]
   (or (primitive-array-ctors native-type)
       (primitive-array-ctors (native-type->class native-type))))
 
-(defn ->native-array [[_ native-element-type] n-or-seq]
-  (let [array-ctor (native-array-ctor native-element-type)
+(defn ->input-output-array [[_ native-element-type] n-or-seq]
+  (let [array-ctor (input-output-array-ctor native-element-type)
         native-element-class  (native-type->class native-element-type)
         _ (when-not (or array-ctor
                         (#{String Pointer} native-element-class))
@@ -164,14 +164,14 @@
                               String x)))
                         n-or-seq))
         n (if (number? n-or-seq) n-or-seq (count n-or-seq))]
-    (->WrappedArrayImpl native-element-type
-                        n
-                        (if (= String native-element-class)
-                          (let [array (into-array String n-or-seq)]
-                            [(StringArray. array) array])
-                          (if array-ctor
-                            (array-ctor n-or-seq)
-                            (long-array n-or-seq))))))
+    (->InputOutputArrayImpl native-element-type
+                            n
+                            (if (= String native-element-class)
+                              (let [array (into-array String n-or-seq)]
+                                [(StringArray. array) array])
+                              (if array-ctor
+                                (array-ctor n-or-seq)
+                                (long-array n-or-seq))))))
 
 (s/fdef implicit-array-size
   :args (s/cat :kw keyword?))
@@ -179,31 +179,31 @@
   (fn [args]
     (count (get args kw))))
 
-(defn native-array [native-element-type]
-  [::native-array native-element-type])
+(defn input-output-array [native-element-type]
+  [::input-output-array native-element-type])
 
 (defn input-array [native-element-type]
-  (let [native-array-type (native-array native-element-type)]
-    (transform-input native-array-type
+  (let [input-output-array-type (input-output-array native-element-type)]
+    (transform-input input-output-array-type
                      (s/coll-of (native-type->spec native-element-type))
-                     (fn [x] (->native-array native-array-type x)))))
+                     (fn [x] (->input-output-array input-output-array-type x)))))
 
-(defmethod complex-native-type->spec ::native-array
+(defmethod complex-native-type->spec ::input-output-array
   [[_ native-element-type]]
-  (s/and #(satisfies? WrappedArray %1)
+  (s/and #(satisfies? InputOutputArray %1)
          #(native-element-type (.native-element-type %))))
 
-(defmethod complex-native-type->class ::native-array
+(defmethod complex-native-type->class ::input-output-array
   [[_ native-element-type]]
   Pointer)
 
-(defmethod unwrap-complex-native-value ::native-array
+(defmethod unwrap-complex-native-value ::input-output-array
   [[_ native-element-type] value]
   (if (= native-element-type String)
     (first (.native-value value))
     (.native-value value)))
 
-(defmethod wrap-complex-native-value ::native-array
+(defmethod wrap-complex-native-value ::input-output-array
   [[_ native-element-type] value]
   (throw (IllegalArgumentException. "Arrays not supported in return types")))
 

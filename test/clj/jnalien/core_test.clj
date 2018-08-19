@@ -1,7 +1,7 @@
 (ns jnalien.core-test
   (:require [clojure.test :refer :all]
-            [jnalien.core :refer [defpointer defenum native-array input-array
-                                  nullptr ->native-array implicit-array-size]])
+            [jnalien.core :refer [defpointer defenum input-output-array input-array
+                                  nullptr ->input-output-array implicit-array-size]])
   (:import [com.sun.jna Pointer]))
 
 (defpointer ::MyPointer)
@@ -46,19 +46,19 @@
 
 (defn-native Void randomize-my-pointer-array randomizeMyPointerArray
   :n [Integer :implicit (implicit-array-size :output)]
-  :output (native-array ::MyPointer))
+  :output (input-output-array ::MyPointer))
 
 (defn-native ::MyPointer get-my-pointer-in-array getMyPointerInArray
-  :array (native-array ::MyPointer)
+  :array (input-output-array ::MyPointer)
   :index Integer)
 
 (defn-native Void set-my-pointer-in-array setMyPointerInArray
-  :array (native-array :MyPointer)
+  :array (input-output-array :MyPointer)
   :index Integer
   :pointer ::MyPointer)
 
 (defn-native Integer sum sum
-  :array (native-array Integer)
+  :array (input-output-array Integer)
   :n [Integer :implicit (implicit-array-size :array)])
 
 (defn-native Integer sum-input-argument sum
@@ -68,20 +68,20 @@
 (defn-native Void fill-multiples fillMultiples
   :n [Integer :implicit (implicit-array-size :output)]
   :k Integer
-  :output (native-array Integer))
+  :output (input-output-array Integer))
 
 (defn-native Void invert-enum-array invertEnumArray
   :n [Integer :implicit (implicit-array-size :array)]
-  :array (native-array ::MyEnum))
+  :array (input-output-array ::MyEnum))
 
 (defn-native String concat-native concat
-  :array (native-array String)
+  :array (input-output-array String)
   :n [Integer :implicit (implicit-array-size :array)])
 
 (defn-native Void create-multiples-as-string createMultiplesAsString
   :n [Integer :implicit (implicit-array-size :output)]
   :k Integer
-  :output (native-array String))
+  :output (input-output-array String))
 
 ;;
 ;; Test infrastructure
@@ -138,7 +138,7 @@
                (drain-log))))))
   (testing "array of pointers"
     (with-log
-      (let [a (->native-array (native-array ::MyPointer) (repeatedly 5 #(create-my-pointer 0 "")))]
+      (let [a (->input-output-array (input-output-array ::MyPointer) (repeatedly 5 #(create-my-pointer 0 "")))]
         (is (= (repeatedly 5 (fn [] "MyPointer{0, }"))
                (map my-pointer->str @a)))
         (drain-log) ;; ignore result => tested in previous tests
@@ -150,25 +150,25 @@
                    internal-strings)))))))
   (testing "sum of integers"
     (is (= 45
-           (sum (->native-array (native-array Integer) (range 0 10))))))
+           (sum (->input-output-array (input-output-array Integer) (range 0 10))))))
   (testing "sum of integers (input argument)"
     (is (= 45
            (sum-input-argument (range 0 10)))))
   (testing "fill multiples"
     (is (= [0 10 20 30 40])
-        (let [a (->native-array (native-array Integer) 5)]
+        (let [a (->input-output-array (input-output-array Integer) 5)]
           (fill-multiples 10 a)
           @a)))
   (testing "invert enum array"
     (is (= [:local :global :local :global]
-           (let [a (->native-array (native-array ::MyEnum) [:global :local :global :local])]
+           (let [a (->input-output-array (input-output-array ::MyEnum) [:global :local :global :local])]
              (invert-enum-array a)
              @a))))
   (testing "concat strings"
     (is (= "Hello world!"
-           (concat-native (->native-array (native-array String) ["Hello", " ", "world", "!"])))))
+           (concat-native (->input-output-array (input-output-array String) ["Hello", " ", "world", "!"])))))
   (testing create-multiples-as-string
     (is (= ["0" "10" "20" "30" "40"]
-           (let [a (->native-array (native-array String) 5)]
+           (let [a (->input-output-array (input-output-array String) 5)]
              (create-multiples-as-string 10 a)
              @a)))))
