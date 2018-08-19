@@ -28,6 +28,58 @@
 
 (defmulti nullptr (fn [native-type] native-type))
 
+(defmulti complex-native-type->spec
+  (fn [native-type] (first native-type)))
+(defmulti complex-native-type->class
+  (fn [native-type] (first native-type)))
+(defmulti unwrap-complex-native-value
+  (fn [native-type value] (first native-type)))
+(defmulti wrap-complex-native-value
+  (fn [native-type value] (first native-type)))
+
+(defmethod native-type->spec :default [native-type]
+  (if (sequential? native-type)
+    (complex-native-type->spec native-type)
+    (throw (IllegalArgumentException. (str "Unimplemented native-type->spec for " native-type)))))
+
+(defmethod native-type->class :default [native-type]
+  (if (sequential? native-type)
+    (complex-native-type->class native-type)
+    (throw (IllegalArgumentException. (str "Unimplemented native-type->class for " native-type)))))
+
+(defmethod unwrap-native-value :default [native-type value]
+  (if (sequential? native-type)
+    (unwrap-complex-native-value native-type value)
+    (throw (IllegalArgumentException. (str "Unimplemented unwrap-native-value for " native-type)))))
+
+(defmethod wrap-native-value :default [native-type value]
+  (if (sequential? native-type)
+    (wrap-complex-native-value native-type value)
+    (throw (IllegalArgumentException. (str "Unimplemented unwrap-native-value for " native-type)))))
+
+;;
+;; Transformed Input
+;;
+
+(defn transform-input [transformed-native-type spec transformation ]
+  [::transformed-input transformed-native-type spec transformation])
+
+(defmethod complex-native-type->spec ::transformed-input
+  [[_ transformed-native-type spec transformation]]
+  spec)
+
+(defmethod complex-native-type->class ::transformed-input
+  [[_ transformed-native-type spec transformation]]
+  (native-type->class transformed-native-type))
+
+(defmethod unwrap-complex-native-value ::transformed-input
+  [[_ transformed-native-type spec transformation] value]
+  (unwrap-native-value transformed-native-type(transformation value)))
+
+;;
+;; Pointers
+;;
+
 (defrecord WrappedPointer [native-type ^Pointer value])
 (s/fdef defpointer
   :args (s/cat :kw qualified-keyword?))
@@ -47,6 +99,10 @@
        [_# x#] (.value x#))
      (defmethod nullptr ~kw
        [_#] (->WrappedPointer ~kw (Pointer/NULL)))))
+
+;;
+;; Arrays
+;;
 
 ;; TODO I don't really like this solution. It would be nicer to alias
 ;; the array like vec does, while still transforming the values in
@@ -123,41 +179,14 @@
   (fn [args]
     (count (get args kw))))
 
-(defmulti complex-native-type->spec
-  (fn [native-type] (first native-type)))
-(defmulti complex-native-type->class
-  (fn [native-type] (first native-type)))
-(defmulti unwrap-complex-native-value
-  (fn [native-type value] (first native-type)))
-(defmulti wrap-complex-native-value
-  (fn [native-type value] (first native-type)))
-
-(defmethod native-type->spec :default [native-type]
-  (if (sequential? native-type)
-    (complex-native-type->spec native-type)
-    (throw (IllegalArgumentException. (str "Unimplemented native-type->spec for " native-type)))))
-
-(defmethod native-type->class :default [native-type]
-  (if (sequential? native-type)
-    (complex-native-type->class native-type)
-    (throw (IllegalArgumentException. (str "Unimplemented native-type->class for " native-type)))))
-
-(defmethod unwrap-native-value :default [native-type value]
-  (if (sequential? native-type)
-    (unwrap-complex-native-value native-type value)
-    (throw (IllegalArgumentException. (str "Unimplemented unwrap-native-value for " native-type)))))
-
-(defmethod wrap-native-value :default [native-type value]
-  (if (sequential? native-type)
-    (wrap-complex-native-value native-type value)
-    (throw (IllegalArgumentException. (str "Unimplemented unwrap-native-value for " native-type)))))
-
-;;
-;; Native arrays
-;;
-
 (defn native-array [native-element-type]
   [::native-array native-element-type])
+
+(defn input-array [native-element-type]
+  (let [native-array-type (native-array native-element-type)]
+    (transform-input native-array-type
+                     (s/coll-of (native-type->spec native-element-type))
+                     (fn [x] (->native-array native-array-type x)))))
 
 (defmethod complex-native-type->spec ::native-array
   [[_ native-element-type]]
@@ -180,29 +209,8 @@
 
 
 ;;
-;; Transformed Input
+;; Enums
 ;;
-
-(defn transform-input [transformed-native-type spec transformation ]
-  [::transformed-input transformed-native-type spec transformation])
-
-(defn input-array [native-element-type]
-  (let [native-array-type (native-array native-element-type)]
-    (transform-input native-array-type
-                     (s/coll-of (native-type->spec native-element-type))
-                     (fn [x] (->native-array native-array-type x)))))
-
-(defmethod complex-native-type->spec ::transformed-input
-  [[_ transformed-native-type spec transformation]]
-  spec)
-
-(defmethod complex-native-type->class ::transformed-input
-  [[_ transformed-native-type spec transformation]]
-  (native-type->class transformed-native-type))
-
-(defmethod unwrap-complex-native-value ::transformed-input
-  [[_ transformed-native-type spec transformation] value]
-  (unwrap-native-value transformed-native-type(transformation value)))
 
 ;; TODO do some sanity checks (duplicates & co)
 (defn- parse-enum-arguments [args]
@@ -246,7 +254,9 @@
            [_# x#]
            (get kw->id# x#))))))
 
-
+;;
+;; Implementation
+;;
 
 (defmacro defn-native [lib-name return-type clj-fn-symbol native-fn-symbol & named-args-flat]
   (let [native-fn-name (name native-fn-symbol)
